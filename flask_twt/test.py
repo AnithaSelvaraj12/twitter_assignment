@@ -1,46 +1,75 @@
-from flask import Flask, render_template, request, jsonify
-import requests
+from flask import Flask, render_template, request, url_for, redirect, jsonify
+from models import db, Tweet
+import os
 import tweepy
+import requests
+import configparser as cp
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.sql import func
+import sqlite3
 
-app = Flask(__name__)
+conn = sqlite3.connect("database.db")
 
-# Add your Twitter API keys
-consumer_key = "zS2dho2nhu7ishB91yn6xpVAw"
-consumer_secret = "AsUdqFbGAIT0NRFmAnz9Uf1eABlaVHZ6JujZwKeefsDg6zs4BP"
-access_token = "1569658977616809984-ntKSGR8uhuKmwANNlpOsE6Hwthapkh"
-access_token_secret = "c5qI44nhR3Dnc8kHhC8elTRJCfdOJEqLMaYgPD1Ek0eYi"
 
-# Authenticate with Twitter API
-auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-auth.set_access_token(access_token, access_token_secret)
+basedir = os.path.abspath(os.path.dirname(__file__))
+db = SQLAlchemy()
+
+
+def app_obj():
+    app = Flask(__name__)
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "database.db")
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["SQLALCHEMY_ECHO"] = True
+    app.config["SQLALCHEMY_RECORD_QUERIES"] = True
+    db.init_app(app)
+
+    @app.before_first_request
+    def create_database():
+        db.create_all()
+
+    try:
+        db.create_all()
+    except Exception as exception:
+        print("got the following exception when attempting db.create_all() in __init__.py: " + str(exception))
+    finally:
+        print("db.create_all() in __init__.py was successfull - no exceptions were raised")
+
+    return app
+
+
+app = app_obj()
+
+
+config = cp.ConfigParser()
+config.read("config.ini")
+
+auth = tweepy.OAuthHandler(eval(config["Default"]["consumer_key"]), eval(config["Default"]["consumer_secret"]))
+auth.set_access_token(eval(config["Default"]["access_token"]), eval(config["Default"]["access_token_secret"]))
 api = tweepy.API(auth)
 
 # Define routes for the app
 @app.route("/home")
 def home():
-    return render_template("home.html")
-    # return "Welcome AJ"
+    cursor = conn.execute("SELECT * FROM tweet")
+    rows = cursor.fetchall()
+    return render_template("tweets.html", tweets=rows)
 
 
 @app.route("/login")
 def login():
-    # return twitter.authorize(callback=url_for('oauth_authorized',
-    # next=request.args.get('next') or request.referrer or None))
+
     return render_template("login.html")
 
 
 @app.route("/tweets")
 def get_tweets():
-    # Extract the screen name from the request body
     screen_name = request.args.get("username")
 
-    # Use Tweepy to retrieve the user's timeline tweets
     try:
         tweets = api.user_timeline(screen_name=screen_name, count=100)
     except Exception as e:
         return jsonify({" sorry the user ", screen_name, "does not exist"}), 400
 
-    # Create a list of Tweet objects and add them to the database session
     tweet_list = []
     i = 1
     for tweet in tweets:
@@ -48,15 +77,13 @@ def get_tweets():
         tweet_obj = {"text": tweet.text, "created_at": tweet.created_at, "retweet_count": tweet.retweet_count, "favorite_count": tweet.favorite_count, "lang": tweet.lang}
         print(i)
         tweet_list.append(tweet_obj)
+        tweet_rec = Tweet(username=screen_name, tweet_created_at=tweet.created_at, retweet_count=tweet.retweet_count, favorite_count=tweet.favorite_count, tweet_text=tweet.text)
+        db.session.add(tweet_rec)
+        db.session.commit()
+        print("Record_ID", tweet_rec.id)
 
-    # Commit the database session
-
-    # Check if any tweets were retrieved
     if not tweet_list:
         return jsonify({"error": 'No tweets found for screen_name "{}"'.format(screen_name)}), 404
-
-    # Return the tweet data as a JSON response
-    # return jsonify({"tweets": tweet_list})
     print(tweet_list)
     return render_template("tweets.html", tweets=tweet_list)
 
