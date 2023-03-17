@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Twitter Stream</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 16px;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        input[type=text] {
+            width: 70%;
+            padding: 12px 20px;
+            margin: 8px 0;
+            margin-left: 10%;
+            box-sizing: border-box;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+        }
+
+        input[type=submit] {
+            background-color: #4CAF50;
+            color: white;
+            padding: 14px 20px;
+            margin: 8px 0;
+            margin-left: 2%;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        input[type=submit]:hover {
+            background-color: #45a049;
+        }
+
+        .sort-button {
+            background-color: #604caf;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .sort-button:hover {
+            background-color: #45a049;
+        }
+
+        .searchdiv {
+            display: flex;
+            flex-wrap: wrap;
+
+        }
+
+        .export-btn {
+            background-color: #008CBA;
+            color: white;
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            margin-top: 9px;
+            margin-left: 4px;
+            cursor: pointer;
+            float: right;
+            height: 40px;
+        }
+
+        .export-btn:hover {
+            background-color: #006f8f;
+        }
+    </style>
+</head>
+
+<body>
+
+    <center>
+        <h1>Twitter activity by the user</h1>
+    </center>
+
+    <div class="searchdiv">
+        <form action="/search">
+            <input type="text" id="searchbox" name="searchbox" placeholder="Search tweets...">
+            <input type="submit" value="Search">
+        </form>
+        <button class="export-btn" onclick="downloadCSV()">downloadCSV</button>
+    </div>
+
+
+    <table id="tweetsTable">
+        <thead>
+            <tr>
+                <th>Text</th>
+                <th>Created At
+                    <button class="sort-button" onclick="sortTweetsByDate()">Sort</button>
+                </th>
+                <th>Retweets</th>
+                <th>Favorites</th>
+            </tr>
+        </thead>
+        <tbody id="tweet-table">
+            {% for tweet in tweets %}
+            <tr>
+                <td>{{ tweet.text }}</td>
+                <td>{{ tweet.created_at }}</td>
+                <td>{{ tweet.retweet_count }}</td>
+                <td>{{ tweet.favorite_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <script>
+        function sortTweetsByDate() {
+            var table, rows, switching, i, x, y, shouldSwitch;
+            table = document.getElementById("tweet-table");
+            switching = true;
+            while (switching) {
+                switching = false;
+                rows = table.rows;
+                for (i = 0; i < (rows.length - 1); i++) {
+                    shouldSwitch = false;
+                    x = rows[i].getElementsByTagName("TD")[1];
+                    y = rows[i + 1].getElementsByTagName("TD")[1];
+                    if (x.innerHTML.toLowerCase() > y.innerHTML.toLowerCase()) {
+                        shouldSwitch = true;
+                        break;
+                    }
+                }
+                if (shouldSwitch) {
+                    rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
+                    switching = true;
+                }
+            }
+        }
+        function downloadCSV() {
+            var rows = document.querySelectorAll("#tweetsTable tbody tr");
+            var csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Text,Created At,Retweet Count,Favorite Count,Language\n";
+            rows.forEach(function (row) {
+                var rowData = "";
+                row.querySelectorAll("td").forEach(function (cell) {
+                    rowData += "\"" + cell.innerText.replace(/"/g, "\"\"") + "\",";
+                });
+                csvContent += rowData.slice(0, -1) + "\n";
+            });
+            var encodedUri = encodeURI(csvContent);
+            var link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "tweets.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+    </script>
+</body>
+
+</html>
